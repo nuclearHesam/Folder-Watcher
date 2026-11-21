@@ -71,9 +71,17 @@ internal static class Program
                 DateTimeOffset.Now, "WatcherStarted", watchPath, null,
                 $"Recursive={config.IncludeSubdirectories}; audio extensions only"));
 
+            var runTask = Task.Delay(Timeout.Infinite, shutdown.Token);
+            var completedTask = await Task.WhenAny(runTask, writerTask);
+
+            // If the log writer fails (for example, the destination becomes unavailable),
+            // surface that failure instead of leaving a watcher running without a log.
+            if (completedTask == writerTask)
+                await writerTask;
+
             try
             {
-                await Task.Delay(Timeout.Infinite, shutdown.Token);
+                await runTask;
             }
             catch (OperationCanceledException)
             {
