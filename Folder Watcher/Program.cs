@@ -7,9 +7,9 @@ internal static class Program
 {
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".mp3", ".wav", ".wave", ".flac", ".aac", ".m4a", ".mp4", ".ogg", ".oga",
+        ".mp3", ".wav", ".wave", ".flac", ".aac", ".m4a", ".ogg", ".oga",
         ".opus", ".wma", ".aiff", ".aif", ".aifc", ".alac", ".ape", ".wv", ".tta",
-        ".dsf", ".dff", ".mid", ".midi", ".amr", ".3ga", ".ac3", ".dts", ".mka",
+        ".dsf", ".dff", ".mid", ".midi", ".amr", ".3ga", ".ac3", ".dts",
         ".mpc", ".mp+", ".mpp", ".ra", ".ram", ".voc", ".au", ".snd", ".caf",
         ".spx", ".m4b", ".m4p", ".aa", ".aax", ".awb"
     };
