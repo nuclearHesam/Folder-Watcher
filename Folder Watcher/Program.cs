@@ -11,12 +11,11 @@ internal static class Program
         ".opus", ".wma", ".aiff", ".aif", ".aifc", ".alac", ".ape", ".wv", ".tta",
         ".dsf", ".dff", ".mid", ".midi", ".amr", ".3ga", ".ac3", ".dts", ".mka",
         ".mpc", ".mp+", ".mpp", ".ra", ".ram", ".voc", ".au", ".snd", ".caf",
-        ".spx", ". tak", ".tak", ".m4b", ".m4p", ".aa", ".aax", ".awb"
+        ".spx", ".m4b", ".m4p", ".aa", ".aax", ".awb"
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        WriteIndented = false,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
@@ -48,11 +47,10 @@ internal static class Program
                 shutdown.Cancel();
             };
 
-            var writerTask = WriteEventsAsync(channel.Reader, logPath, shutdown.Token);
             using var watcher = new FileSystemWatcher(watchPath)
             {
                 IncludeSubdirectories = config.IncludeSubdirectories,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName,
                 InternalBufferSize = 32 * 1024,
                 Filter = "*",
                 EnableRaisingEvents = false
@@ -67,8 +65,8 @@ internal static class Program
                 channel.Writer.TryWrite(new MusicChange(DateTimeOffset.Now, "WatcherError", null, null, message));
             };
 
+            var writerTask = WriteEventsAsync(channel.Reader, logPath);
             watcher.EnableRaisingEvents = true;
-
             channel.Writer.TryWrite(new MusicChange(
                 DateTimeOffset.Now, "WatcherStarted", watchPath, null,
                 $"Recursive={config.IncludeSubdirectories}; audio extensions only"));
@@ -89,7 +87,6 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            // A WinExe has no console. Write startup/configuration failures beside the app.
             try
             {
                 var errorPath = Path.Combine(baseDirectory, "FolderWatcher-errors.log");
@@ -98,7 +95,7 @@ internal static class Program
             }
             catch
             {
-                // There is nowhere else reliable to report a startup failure.
+                // Startup errors are recorded when possible.
             }
 
             return 1;
@@ -148,18 +145,16 @@ internal static class Program
             writer.TryWrite(new MusicChange(DateTimeOffset.Now, "Added", newPath, null, "Renamed from a non-audio file"));
     }
 
-    private static async Task WriteEventsAsync(
-        ChannelReader<MusicChange> reader, string logPath, CancellationToken cancellationToken)
+    private static async Task WriteEventsAsync(ChannelReader<MusicChange> reader, string logPath)
     {
-        await using var stream = new FileStream(logPath, FileMode.Append, FileAccess.Write, FileShare.Read,
+        await using var stream = new FileStream(logPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite,
             bufferSize: 16 * 1024, options: FileOptions.Asynchronous | FileOptions.SequentialScan);
         await using var writer = new StreamWriter(stream);
 
-        await foreach (var change in reader.ReadAllAsync(cancellationToken))
+        await foreach (var change in reader.ReadAllAsync())
         {
-            var json = JsonSerializer.Serialize(change, JsonOptions);
-            await writer.WriteLineAsync(json);
-            await writer.FlushAsync(cancellationToken);
+            await writer.WriteLineAsync(JsonSerializer.Serialize(change, JsonOptions));
+            await writer.FlushAsync();
         }
     }
 
