@@ -1,61 +1,179 @@
-﻿using System;
-using System.IO;
+using System.Text.Json;
+using System.Threading.Channels;
 
 namespace FolderWatcher;
 
-class Program
+internal static class Program
 {
-    private static FileSystemWatcher? watcher;
-
-    static void Main()
+    private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
+        ".mp3", ".wav", ".wave", ".flac", ".aac", ".m4a", ".mp4", ".ogg", ".oga",
+        ".opus", ".wma", ".aiff", ".aif", ".aifc", ".alac", ".ape", ".wv", ".tta",
+        ".dsf", ".dff", ".mid", ".midi", ".amr", ".3ga", ".ac3", ".dts", ".mka",
+        ".mpc", ".mp+", ".mpp", ".ra", ".ram", ".voc", ".au", ".snd", ".caf",
+        ".spx", ". tak", ".tak", ".m4b", ".m4p", ".aa", ".aax", ".awb"
+    };
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = false,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    private static async Task<int> Main()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var configPath = Path.Combine(baseDirectory, "appsettings.json");
+
         try
         {
-            string folderPath = File.ReadAllText("appsettings.txt");
-            string logFilePath = Path.Combine(folderPath, "LogChanges.txt");
+            var config = await LoadConfigurationAsync(configPath);
+            var watchPath = ResolvePath(baseDirectory, config.WatchPath);
+            var logPath = ResolvePath(baseDirectory, config.LogFilePath);
 
-            watcher = new FileSystemWatcher(folderPath)
+            if (!Directory.Exists(watchPath))
+                throw new DirectoryNotFoundException($"Watch folder does not exist: {watchPath}");
+
+            var logDirectory = Path.GetDirectoryName(logPath);
+            if (!string.IsNullOrWhiteSpace(logDirectory))
+                Directory.CreateDirectory(logDirectory);
+
+            var channel = Channel.CreateUnbounded<MusicChange>(
+                new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+
+            using var shutdown = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) =>
             {
-                IncludeSubdirectories = true,
-                EnableRaisingEvents = true
+                e.Cancel = true;
+                shutdown.Cancel();
             };
 
-            watcher.Created += (sender, e) => LogChange("Created", e.FullPath, logFilePath);
-            watcher.Deleted += (sender, e) => LogChange("Deleted", e.FullPath, logFilePath);
-
-            Console.WriteLine("Watching for changes. Press Ctrl+C to exit.");
-            
-            Console.CancelKeyPress += (sender, e) =>
+            var writerTask = WriteEventsAsync(channel.Reader, logPath, shutdown.Token);
+            using var watcher = new FileSystemWatcher(watchPath)
             {
-                Console.WriteLine("Stopping watcher...");
-                watcher.EnableRaisingEvents = false;
-                watcher.Dispose();
-                Environment.Exit(0);
+                IncludeSubdirectories = config.IncludeSubdirectories,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size,
+                InternalBufferSize = 32 * 1024,
+                Filter = "*",
+                EnableRaisingEvents = false
             };
 
-            while (true) Thread.Sleep(1000);
+            watcher.Created += (_, e) => QueueIfAudio(channel.Writer, "Added", e.FullPath);
+            watcher.Deleted += (_, e) => QueueIfAudio(channel.Writer, "Deleted", e.FullPath);
+            watcher.Renamed += (_, e) => HandleRename(channel.Writer, e.OldFullPath, e.FullPath);
+            watcher.Error += (_, e) =>
+            {
+                var message = e.GetException()?.Message ?? "Unknown FileSystemWatcher error";
+                channel.Writer.TryWrite(new MusicChange(DateTimeOffset.Now, "WatcherError", null, null, message));
+            };
+
+            watcher.EnableRaisingEvents = true;
+
+            channel.Writer.TryWrite(new MusicChange(
+                DateTimeOffset.Now, "WatcherStarted", watchPath, null,
+                $"Recursive={config.IncludeSubdirectories}; audio extensions only"));
+
+            try
+            {
+                await Task.Delay(Timeout.Infinite, shutdown.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Normal shutdown.
+            }
+
+            watcher.EnableRaisingEvents = false;
+            channel.Writer.TryComplete();
+            await writerTask;
+            return 0;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
+            // A WinExe has no console. Write startup/configuration failures beside the app.
+            try
+            {
+                var errorPath = Path.Combine(baseDirectory, "FolderWatcher-errors.log");
+                await File.AppendAllTextAsync(errorPath,
+                    $"{DateTimeOffset.Now:O} {ex}{Environment.NewLine}");
+            }
+            catch
+            {
+                // There is nowhere else reliable to report a startup failure.
+            }
+
+            return 1;
         }
     }
 
-    private static void LogChange(string action, string path, string logFilePath)
+    private static async Task<WatcherConfiguration> LoadConfigurationAsync(string path)
     {
-        try
-        {
-            string[] parts = path.Split('\\');
-            string secondLast = parts.Length > 1 ? parts[^2] : "Unknown";
-            string last = parts[^1];
+        if (!File.Exists(path))
+            throw new FileNotFoundException("appsettings.json was not found beside the application.", path);
 
-            string logEntry = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {action} ==> '{secondLast}'  {last}\n";
-            File.AppendAllText(logFilePath, logEntry);
-            Console.WriteLine(logEntry);
-        }
-        catch (Exception ex)
+        await using var stream = File.OpenRead(path);
+        var config = await JsonSerializer.DeserializeAsync<WatcherConfiguration>(stream,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        if (config is null || string.IsNullOrWhiteSpace(config.WatchPath))
+            throw new InvalidDataException("Set a valid 'watchPath' in appsettings.json.");
+
+        if (string.IsNullOrWhiteSpace(config.LogFilePath))
+            throw new InvalidDataException("Set a valid 'logFilePath' in appsettings.json.");
+
+        return config;
+    }
+
+    private static string ResolvePath(string baseDirectory, string path) =>
+        Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(baseDirectory, path));
+
+    private static bool IsAudioFile(string path) =>
+        AudioExtensions.Contains(Path.GetExtension(path));
+
+    private static void QueueIfAudio(ChannelWriter<MusicChange> writer, string action, string path)
+    {
+        if (IsAudioFile(path))
+            writer.TryWrite(new MusicChange(DateTimeOffset.Now, action, path, null, null));
+    }
+
+    private static void HandleRename(ChannelWriter<MusicChange> writer, string oldPath, string newPath)
+    {
+        var oldIsAudio = IsAudioFile(oldPath);
+        var newIsAudio = IsAudioFile(newPath);
+
+        if (oldIsAudio && newIsAudio)
+            writer.TryWrite(new MusicChange(DateTimeOffset.Now, "Renamed", oldPath, newPath, null));
+        else if (oldIsAudio)
+            writer.TryWrite(new MusicChange(DateTimeOffset.Now, "Deleted", oldPath, null, "Renamed to a non-audio file"));
+        else if (newIsAudio)
+            writer.TryWrite(new MusicChange(DateTimeOffset.Now, "Added", newPath, null, "Renamed from a non-audio file"));
+    }
+
+    private static async Task WriteEventsAsync(
+        ChannelReader<MusicChange> reader, string logPath, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(logPath, FileMode.Append, FileAccess.Write, FileShare.Read,
+            bufferSize: 16 * 1024, options: FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var writer = new StreamWriter(stream);
+
+        await foreach (var change in reader.ReadAllAsync(cancellationToken))
         {
-            Console.WriteLine($"Logging Error: {ex.Message}");
+            var json = JsonSerializer.Serialize(change, JsonOptions);
+            await writer.WriteLineAsync(json);
+            await writer.FlushAsync(cancellationToken);
         }
     }
+
+    private sealed class WatcherConfiguration
+    {
+        public string WatchPath { get; set; } = "";
+        public string LogFilePath { get; set; } = "music-changes.jsonl";
+        public bool IncludeSubdirectories { get; set; } = true;
+    }
+
+    private sealed record MusicChange(
+        DateTimeOffset Timestamp,
+        string Action,
+        string? Path,
+        string? NewPath,
+        string? Details);
 }
