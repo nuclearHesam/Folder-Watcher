@@ -54,7 +54,7 @@ internal static class Program
             watcher.Renamed += (_, e) => HandleRename(channel.Writer, e.OldFullPath, e.FullPath);
             watcher.Error += (_, e) =>
             {
-                var message = e.GetException()?.Message ?? "خطای نامشخص در پایش پوشه";
+                var message = e.GetException()?.Message ?? "Unknown folder monitoring error";
                 channel.Writer.TryWrite(new MusicChange(DateTimeOffset.Now, "Error", null, null, message));
             };
 
@@ -88,7 +88,7 @@ internal static class Program
             {
                 var errorPath = Path.Combine(baseDirectory, "FolderWatcher-errors.log");
                 await File.AppendAllTextAsync(errorPath,
-                    $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss} خطا: {ex}{Environment.NewLine}",
+                    $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss} Error: {ex}{Environment.NewLine}",
                     Encoding.UTF8);
             }
             catch
@@ -103,7 +103,7 @@ internal static class Program
     private static async Task<WatcherConfiguration> LoadConfigurationAsync(string path)
     {
         if (!File.Exists(path))
-            throw new FileNotFoundException("appsettings.json was not found beside the application.", path);
+            throw new FileNotFoundException("appsettings.json was not found next to the executable.", path);
 
         await using var stream = File.OpenRead(path);
         var config = await System.Text.Json.JsonSerializer.DeserializeAsync<WatcherConfiguration>(stream,
@@ -144,20 +144,20 @@ internal static class Program
     {
         var time = change.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
         if (change.Action == "Started")
-            return $"[{time}] پایش آهنگ‌ها شروع شد. مسیر: {change.Path}";
+            return $"[{time}] Music monitoring started. Folder: {change.Path}";
 
         if (change.Action == "Error")
-            return $"[{time}] خطا در پایش پوشه: {change.Details}";
+            return $"[{time}] Folder monitoring error: {change.Details}";
 
         var fileName = Path.GetFileName(change.Path);
-        var folder = Path.GetDirectoryName(change.Path) ?? change.Path ?? "نامشخص";
+        var folder = Path.GetDirectoryName(change.Path) ?? change.Path ?? "Unknown";
 
         return change.Action switch
         {
-            "Added" => $"[{time}] آهنگ «{fileName}» به پوشه «{folder}» اضافه شد.",
-            "Deleted" => $"[{time}] آهنگ «{fileName}» از داخل پوشه «{folder}» حذف شد.",
-            "Renamed" => $"[{time}] نام آهنگ «{fileName}» در پوشه «{folder}» به «{Path.GetFileName(change.NewPath)}» تغییر کرد.",
-            _ => $"[{time}] تغییر: {change.Action} - {change.Path}"
+            "Added" => $"[{time}] Music file '{fileName}' was added to folder '{folder}'.",
+            "Deleted" => $"[{time}] Music file '{fileName}' was deleted from folder '{folder}'.",
+            "Renamed" => $"[{time}] Music file '{fileName}' in folder '{folder}' was renamed to '{Path.GetFileName(change.NewPath)}'.",
+            _ => $"[{time}] Change: {change.Action} - {change.Path}"
         };
     }
 
