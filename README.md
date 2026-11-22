@@ -1,75 +1,49 @@
 # Folder Watcher 🎵
 
-**Folder Watcher** یک برنامه سبک برای ویندوز است که در پس‌زمینه اجرا می‌شود و تغییرات فایل‌های موسیقی را در یک پوشه و زیرپوشه‌های آن ثبت می‌کند.
+Folder Watcher is a lightweight Windows background application that monitors a directory and optionally all of its subdirectories for music file changes.
 
-هدف برنامه این است که بدون دانلود، بازکردن یا تغییر فایل‌های موسیقی، فقط رویدادهای مربوط به آهنگ‌ها را تشخیص دهد و گزارشی خوانا همراه با تاریخ و ساعت در یک فایل متنی ذخیره کند.
+It records music file additions, deletions, and renames in a readable text log. It does not download, open, or modify music files.
 
-- **اضافه‌شدن آهنگ**: ثبت می‌شود.
-- **حذف‌شدن آهنگ**: ثبت می‌شود.
-- **تغییر نام آهنگ**: ثبت می‌شود.
-- **فایل‌های غیرصوتی**: نادیده گرفته می‌شوند.
-- **اجرای خودکار**: قابل اجرا از طریق پوشه Startup ویندوز.
+## Features
 
-## فهرست مطالب
+- Detects newly added audio files.
+- Detects deleted audio files.
+- Detects renamed audio files.
+- Optionally monitors all subdirectories.
+- Filters events by audio file extension.
+- Writes timestamped, human-readable entries to `MusicChanges.txt`.
+- Appends to the existing log instead of replacing it.
+- Runs without a console window.
+- Can start automatically when the user signs in to Windows.
 
-- [امکانات](#امکانات)
-- [نحوه ذخیره گزارش](#نحوه-ذخیره-گزارش)
-- [تنظیمات برنامه](#تنظیمات-برنامه)
-- [فرمت‌های صوتی پشتیبانی‌شده](#فرمتهای-صوتی-پشتیبانی‌شده)
-- [پیش‌نیازها](#پیشنیازها)
-- [ساخت و انتشار نسخه ویندوز](#ساخت-و-انتشار-نسخه-ویندوز)
-- [اجرای خودکار هنگام ورود به ویندوز](#اجرای-خودکار-هنگام-ورود-به-ویندوز)
-- [توقف برنامه](#توقف-برنامه)
-- [رفتارها و محدودیت‌ها](#رفتارها-و-محدودیتها)
-- [ساختار پروژه](#ساختار-پروژه)
-- [عیب‌یابی](#عیبیابی)
+## Log file location
 
-## امکانات
+The log is always created directly inside the monitored root directory, not beside the application executable.
 
-- پایش یک مسیر دلخواه در ویندوز.
-- امکان پایش زیرپوشه‌ها با یک گزینه در تنظیمات.
-- تشخیص اضافه‌شدن، حذف‌شدن و تغییر نام فایل‌های صوتی.
-- فیلترکردن فایل‌ها بر اساس پسوند؛ فایل‌های عکس، ویدئو، متن و سایر فایل‌های غیرصوتی وارد گزارش نمی‌شوند.
-- ذخیره گزارش به‌صورت متن ساده و خوانا در فایل `MusicChanges.txt`.
-- ثبت تاریخ و ساعت هر رویداد.
-- افزودن رویدادهای جدید به انتهای گزارش قبلی؛ گزارش‌های قبلی پاک نمی‌شوند.
-- اجرای بدون پنجره کنسول، مناسب برای اجرا در پس‌زمینه و Startup ویندوز.
-- استفاده از یک صف و نویسنده پس‌زمینه برای مرتب‌سازی نوشتن رویدادها در فایل گزارش.
-
-## نحوه ذخیره گزارش
-
-فایل گزارش همیشه مستقیماً در **پوشه اصلی تحت پایش** ساخته می‌شود؛ نه کنار فایل اجرایی برنامه.
-
-برای مثال، اگر مسیر پایش این باشد:
-
-```text
-D:\SoundSpace
-```
-
-فایل گزارش در این مسیر ایجاد می‌شود:
+For example, when monitoring `D:\SoundSpace`, the log is:
 
 ```text
 D:\SoundSpace\MusicChanges.txt
 ```
 
-اگر آهنگی در یکی از زیرپوشه‌ها اضافه یا حذف شود، مسیر همان زیرپوشه در گزارش نوشته خواهد شد.
+Changes in nested directories include the actual directory path in the log.
 
-### نمونه گزارش
+### Example log
 
 ```text
-[2026-11-22 03:15:20] پایش آهنگ‌ها شروع شد. مسیر: D:\SoundSpace
-[2026-11-22 03:16:05] آهنگ «song.flac» به پوشه «D:\SoundSpace\Album» اضافه شد.
-[2026-11-22 03:18:02] آهنگ «old-name.mp3» از داخل پوشه «D:\SoundSpace\Album» حذف شد.
-[2026-11-22 03:20:10] نام آهنگ «track.mp3» در پوشه «D:\SoundSpace\Album» به «new-track.mp3» تغییر کرد.
+[2026-11-22 03:15:20] Music monitoring started. Folder: D:\SoundSpace
+[2026-11-22 03:16:05] Music file 'song.flac' was added to folder 'D:\SoundSpace\Album'.
+[2026-11-22 03:18:02] Music file 'old-name.mp3' was deleted from folder 'D:\SoundSpace\Album'.
+[2026-11-22 03:20:10] Music file 'track.mp3' in folder 'D:\SoundSpace\Album' was renamed to 'new-track.mp3'.
 ```
 
-گزارش با کدگذاری UTF-8 و بدون پاک‌کردن محتوای قبلی ذخیره می‌شود؛ بنابراین متن فارسی در ویرایشگرهای متنی سازگار به‌درستی نمایش داده می‌شود.
+The log is written as UTF-8 plain text. New events are appended, so previous entries remain available after restarting the application.
 
-## تنظیمات برنامه
+## Configuration
 
-فایل `appsettings.json` باید در کنار فایل اجرایی `FolderWatcher.exe` قرار داشته باشد.
+The `appsettings.json` file must be placed next to `FolderWatcher.exe`.
 
-محتوای پیش‌فرض:
+Default configuration:
 
 ```json
 {
@@ -78,154 +52,141 @@ D:\SoundSpace\MusicChanges.txt
 }
 ```
 
-### توضیح گزینه‌ها
-
-| گزینه | نوع | توضیح |
+| Setting | Type | Description |
 |---|---|---|
-| `watchPath` | String | مسیر پوشه‌ای که باید پایش شود. |
-| `includeSubdirectories` | Boolean | اگر `true` باشد، تمام زیرپوشه‌ها هم پایش می‌شوند؛ اگر `false` باشد، فقط خود پوشه اصلی بررسی می‌شود. |
+| `watchPath` | String | Absolute or relative path to the directory to monitor. |
+| `includeSubdirectories` | Boolean | Set to `true` to monitor nested directories, or `false` to monitor only the root directory. |
 
-### تغییر مسیر پوشه
+The monitored directory must already exist. After changing the configuration, restart the application for the new settings to take effect.
 
-برای پایش مسیر دیگری، مقدار `watchPath` را تغییر دهید. برای مثال:
+The log filename is fixed as `MusicChanges.txt` and is always placed in the monitored root directory.
 
-```json
-{
-  "watchPath": "E:\\My Music",
-  "includeSubdirectories": true
-}
-```
+## Supported audio extensions
 
-مسیر پوشه باید از قبل وجود داشته باشد. پس از تغییر تنظیمات، برنامه را یک‌بار ببندید و دوباره اجرا کنید تا تنظیمات جدید خوانده شوند.
+File extensions are matched case-insensitively.
 
-> **نکته:** مسیر گزارش قابل تنظیم نیست. نام آن همیشه `MusicChanges.txt` است و در ریشه پوشه تحت پایش قرار می‌گیرد.
-
-## فرمت‌های صوتی پشتیبانی‌شده
-
-برنامه پسوند فایل‌ها را بدون حساسیت به حروف بزرگ و کوچک بررسی می‌کند.
-
-| دسته | پسوندها |
+| Category | Extensions |
 |---|---|
-| صوتی رایج | `.mp3`, `.wav`, `.wave`, `.flac`, `.aac`, `.m4a`, `.ogg`, `.oga`, `.opus`, `.wma` |
-| کیفیت بالا و بدون افت | `.aiff`, `.aif`, `.aifc`, `.alac`, `.ape`, `.wv`, `.tta`, `.dsf`, `.dff` |
-| MIDI و صوتی دیگر | `.mid`, `.midi`, `.amr`, `.3ga`, `.ac3`, `.dts`, `.mpc`, `.mp+`, `.mpp`, `.ra`, `.ram`, `.voc`, `.au`, `.snd`, `.caf`, `.spx` |
-| کتاب صوتی و سایر موارد | `.m4b`, `.m4p`, `.aa`, `.aax`, `.awb` |
+| Common audio | `.mp3`, `.wav`, `.wave`, `.flac`, `.aac`, `.m4a`, `.ogg`, `.oga`, `.opus`, `.wma` |
+| Lossless and high-resolution audio | `.aiff`, `.aif`, `.aifc`, `.alac`, `.ape`, `.wv`, `.tta`, `.dsf`, `.dff` |
+| MIDI and other audio | `.mid`, `.midi`, `.amr`, `.3ga`, `.ac3`, `.dts`, `.mpc`, `.mp+`, `.mpp`, `.ra`, `.ram`, `.voc`, `.au`, `.snd`, `.caf`, `.spx` |
+| Audiobooks and other formats | `.m4b`, `.m4p`, `.aa`, `.aax`, `.awb` |
 
-این فهرست در کد برنامه تعریف شده است و در صورت نیاز می‌توان پسوندهای دیگری به آن اضافه کرد.
+The application identifies audio files by extension, not by inspecting file contents. A non-audio file with a supported audio extension will therefore be treated as an audio file.
 
-**توجه:** برنامه بر اساس پسوند فایل تصمیم می‌گیرد، نه محتوای واقعی آن. بنابراین اگر یک فایل غیرصوتی پسوندی مانند `.mp3` داشته باشد، به‌عنوان فایل صوتی در نظر گرفته می‌شود.
+## Requirements
 
-## پیش‌نیازها
+To run a published build:
 
-برای اجرای نسخه منتشرشده:
+- Windows 10 or Windows 11.
+- Permission to monitor the selected directory.
+- Permission to create and append to `MusicChanges.txt` in the monitored directory.
 
-- ویندوز ۱۰ یا ویندوز ۱۱.
-- دسترسی خواندن و دریافت اعلان تغییرات از پوشه موردنظر.
-- دسترسی نوشتن در پوشه‌ای که قرار است فایل `MusicChanges.txt` در آن ساخته شود.
+To build from source:
 
-برای ساخت پروژه از سورس کد:
+- .NET 10 SDK.
+- The project source code.
 
-- نصب **.NET 10 SDK**.
-- دسترسی به سورس پروژه.
+The self-contained publish command below includes the .NET runtime, so a separate runtime installation is not required on the target PC.
 
-نسخه Self-contained که در بخش بعد منتشر می‌شود، برای اجرا به نصب جداگانه .NET Runtime روی سیستم مقصد نیاز ندارد.
+## Build and publish
 
-## ساخت و انتشار نسخه ویندوز
-
-ابتدا مخزن را دریافت کنید و وارد پوشه پروژه شوید. سپس در PowerShell یا ترمینال دستور زیر را اجرا کنید:
+Open PowerShell or a terminal in the project directory and run:
 
 ```powershell
 dotnet publish ".\Folder Watcher.csproj" -c Release -r win-x64 --self-contained true
 ```
 
-این دستور نسخه Release مخصوص ویندوز ۶۴ بیتی را به‌صورت Self-contained منتشر می‌کند.
+This publishes a self-contained Release build for 64-bit Windows.
 
-مسیر خروجی:
+The output directory is:
 
 ```text
 Folder Watcher\bin\Release\net10.0-windows\win-x64\publish\
 ```
 
-کل محتویات پوشه `publish` را به محل دلخواه منتقل کنید. ساختار نهایی باید شامل فایل اجرایی و فایل تنظیمات باشد؛ برای مثال:
+Copy the entire contents of the `publish` directory to your preferred installation location. Keep `appsettings.json` next to `FolderWatcher.exe`.
+
+Example deployment layout:
 
 ```text
 FolderWatcher/
 ├── FolderWatcher.exe
 ├── appsettings.json
-└── سایر فایل‌های خروجی انتشار
+└── Other published runtime files
 ```
 
-**مهم:** فایل `appsettings.json` را حذف نکنید و آن را در کنار `FolderWatcher.exe` نگه دارید. برنامه تنظیمات را از همان پوشه‌ای که فایل اجرایی در آن قرار دارد می‌خواند.
+Do not remove `appsettings.json`. The application reads this file from the executable's directory.
 
-## اجرای خودکار هنگام ورود به ویندوز
+## Start automatically with Windows
 
-برای اینکه برنامه بعد از ورود به حساب کاربری ویندوز به‌صورت خودکار اجرا شود:
+To launch Folder Watcher whenever you sign in:
 
-1. نسخه Publish شده را در یک مسیر ثابت قرار دهید؛ مثلاً `C:\Apps\FolderWatcher`.
-2. مطمئن شوید فایل `appsettings.json` کنار `FolderWatcher.exe` قرار دارد و مسیر پوشه موسیقی در آن صحیح است.
-3. کلیدهای `Win + R` را فشار دهید.
-4. عبارت زیر را وارد کنید و Enter بزنید:
+1. Move the published application files to a permanent location, for example `C:\Apps\FolderWatcher`.
+2. Confirm that `appsettings.json` is next to `FolderWatcher.exe` and that `watchPath` points to the intended directory.
+3. Press `Win + R`.
+4. Enter the following command and press Enter:
 
    ```text
    shell:startup
    ```
 
-5. داخل پوشه Startup یک Shortcut از فایل `FolderWatcher.exe` بسازید.
+5. Create a shortcut to `FolderWatcher.exe` inside the Startup folder.
 
-از ورود بعدی به ویندوز، برنامه به‌صورت خودکار و بدون نمایش پنجره کنسول اجرا می‌شود.
+The application will start automatically at the next sign-in and will run without displaying a console window.
 
-> پوشه Startup مربوط به کاربر فعلی ویندوز است. اگر می‌خواهید برنامه برای همه کاربران اجرا شود، باید از روش Startup مشترک ویندوز استفاده کنید.
+The `shell:startup` folder applies to the current Windows user. Use the common Startup folder if the application should launch for all users.
 
-## توقف برنامه
+## Stop the application
 
-از آنجا که برنامه بدون پنجره کنسول اجرا می‌شود، برای متوقف‌کردن آن:
+Because the application runs without a console window:
 
-1. کلیدهای `Ctrl + Shift + Esc` را بزنید تا Task Manager باز شود.
-2. در فهرست Processes یا Details، پردازش `FolderWatcher.exe` را پیدا کنید.
-3. گزینه **End task** را انتخاب کنید.
+1. Press `Ctrl + Shift + Esc` to open Task Manager.
+2. Find `FolderWatcher.exe` in the Processes or Details list.
+3. Select **End task**.
 
-با اجرای مجدد برنامه، پایش از سر گرفته می‌شود و رویدادهای جدید به همان فایل `MusicChanges.txt` اضافه خواهند شد.
+When launched again, monitoring resumes and new events are appended to the existing `MusicChanges.txt` file.
 
-## رفتارها و محدودیت‌ها
+## Behavior and limitations
 
-- **بدون اسکن اولیه:** برنامه از زمان شروع به کار، تغییرات جدید را دریافت می‌کند. فایل‌های قدیمی پوشه به‌عنوان رویداد اضافه‌شدن ثبت نمی‌شوند.
-- **بدون ثبت ویرایش محتوا:** تغییر تگ‌های MP3، تغییر حجم یا ویرایش محتوای یک آهنگ موجود در نسخه فعلی ثبت نمی‌شود؛ تمرکز برنامه روی اضافه‌شدن، حذف‌شدن و تغییر نام است.
-- **تغییر پسوند:** اگر نام یک فایل صوتی به پسوند غیرصوتی تغییر کند، به‌عنوان حذف آهنگ ثبت می‌شود. اگر فایل غیرصوتی به پسوند صوتی تغییر کند، به‌عنوان اضافه‌شدن آهنگ ثبت می‌شود.
-- **تغییر نام فایل صوتی:** اگر پسوند قبل و بعد از تغییر نام هر دو صوتی باشند، یک رویداد تغییر نام ثبت می‌شود.
-- **گزارش داخل پوشه:** فایل `MusicChanges.txt` در ریشه پوشه پایش قرار دارد و چون پسوند صوتی ندارد، وارد گزارش رویدادهای موسیقی نمی‌شود.
-- **اعلان‌های ویندوز:** سازوکار اعلان فایل‌سیستم ویندوز ممکن است در زمان تغییرات بسیار زیاد دچار سرریز بافر شود. در صورت اعلام خطا از سوی سیستم، برنامه تلاش می‌کند آن را در فایل گزارش ثبت کند.
-- **خاموش‌شدن ناگهانی:** اگر ویندوز یا برنامه ناگهانی بسته شود، ممکن است آخرین رویدادهای دریافت‌شده فرصت نوشته‌شدن در فایل را پیدا نکنند.
-- **دسترسی پوشه:** اگر برنامه اجازه نوشتن در پوشه پایش را نداشته باشد، نمی‌تواند فایل گزارش را ایجاد یا به‌روزرسانی کند.
+- **No initial scan:** Monitoring starts when the application launches. Existing files are not logged as newly added.
+- **No content-change tracking:** Editing tags, changing file size, or modifying the contents of an existing audio file is not tracked in the current version. Only additions, deletions, and renames are monitored.
+- **Extension changes:** Renaming an audio file to a non-audio extension is logged as a deletion. Renaming a non-audio file to a supported audio extension is logged as an addition.
+- **Audio-to-audio renames:** When both the old and new extensions are supported audio extensions, one rename entry is recorded.
+- **Log exclusion:** `MusicChanges.txt` is not an audio file and is ignored by the audio extension filter.
+- **Windows notification limits:** Windows may overflow its file-system notification buffer during very heavy activity. The application attempts to record an error when Windows reports one, but missed notifications cannot be reconstructed.
+- **Unexpected shutdown:** If Windows or the application stops unexpectedly, the most recent events may not have been written to disk.
+- **Directory permissions:** The application must have permission to create and append to the log file inside the monitored directory.
 
-## عیب‌یابی
+## Troubleshooting
 
-### فایل گزارش ساخته نمی‌شود
+### The log file is not created
 
-موارد زیر را بررسی کنید:
+Check the following:
 
-1. مقدار `watchPath` در فایل `appsettings.json` صحیح باشد.
-2. پوشه مشخص‌شده واقعاً وجود داشته باشد.
-3. کاربر ویندوز اجازه نوشتن در پوشه را داشته باشد.
-4. فایل `appsettings.json` کنار `FolderWatcher.exe` باشد.
+1. Confirm that `watchPath` in `appsettings.json` is correct.
+2. Confirm that the monitored directory exists.
+3. Confirm that the current Windows user can write to that directory.
+4. Confirm that `appsettings.json` is next to `FolderWatcher.exe`.
 
-### برنامه اجرا نمی‌شود
+### The application does not start
 
-اگر برنامه هنگام شروع با خطا مواجه شود، در صورت امکان فایل زیر کنار فایل اجرایی ساخته می‌شود:
+If startup fails, the application attempts to write details to:
 
 ```text
 FolderWatcher-errors.log
 ```
 
-محتوای این فایل می‌تواند برای پیدا کردن مشکل مسیر یا دسترسی کمک کند.
+This file is placed next to the executable and may contain information about invalid paths, missing configuration, or access errors.
 
-### بعضی تغییرات ثبت نمی‌شوند
+### Some changes are not logged
 
-- بررسی کنید پسوند فایل در فهرست فرمت‌های پشتیبانی‌شده باشد.
-- بررسی کنید `includeSubdirectories` مطابق نیاز روی `true` تنظیم شده باشد.
-- مطمئن شوید برنامه در زمان انجام تغییرات در حال اجرا بوده است.
-- در صورت تغییرات بسیار زیاد و هم‌زمان، محدودیت اعلان‌های فایل‌سیستم ویندوز را در نظر بگیرید.
+- Confirm that the file extension is included in the supported extension list.
+- Confirm that `includeSubdirectories` is set to `true` if nested folders should be monitored.
+- Confirm that the application was running when the file operation occurred.
+- Consider Windows file-system notification limits if many files are changing at the same time.
 
-## ساختار پروژه
+## Project structure
 
 ```text
 Folder-Watcher/
@@ -237,10 +198,10 @@ Folder-Watcher/
 └── README.md
 ```
 
-## مشارکت و توسعه
+## Contributing
 
-برای پیشنهاد قابلیت جدید، گزارش خطا یا مشارکت در توسعه، از بخش Issues و Pull Requests همین مخزن GitHub استفاده کنید.
+For bug reports, feature requests, or contributions, use the Issues and Pull Requests sections of this GitHub repository.
 
-## مجوز
+## License
 
-مجوز استفاده و توزیع پروژه مطابق فایل License موجود در مخزن است. اگر فایل License در مخزن وجود نداشته باشد، شرایط استفاده و بازتوزیع باید با صاحب پروژه هماهنگ شود.
+Usage and redistribution are governed by the license included in this repository. If no license file is present, contact the repository owner before redistributing the project.
