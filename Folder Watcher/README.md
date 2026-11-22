@@ -1,49 +1,39 @@
 # Folder Watcher — Music-only mode
 
-A small Windows background process that records additions, deletions and renames of audio files. It does not download, open, read, or modify music files.
+A silent Windows background app that tracks additions, deletions and renames of audio files only.
 
-## Configure
+## Configuration
 
 Edit `appsettings.json` beside the published executable:
 
 ```json
 {
   "watchPath": "D:\\SoundSpace",
-  "logFilePath": "music-changes.jsonl",
   "includeSubdirectories": true
 }
 ```
 
-- `watchPath`: directory to monitor.
-- `logFilePath`: JSON Lines log file. Relative paths are resolved beside the executable; absolute paths are also supported.
-- `includeSubdirectories`: include nested folders.
+The log is always created as `MusicChanges.txt` directly inside the monitored root folder. It is plain UTF-8 text and uses readable Persian messages with timestamps. Example:
 
-The application reads this file at startup. If another application generates the configuration, write the complete JSON file before launching FolderWatcher.
+```text
+[2026-11-22 03:15:20] آهنگ «song.flac» به پوشه «D:\\SoundSpace\\Album» اضافه شد.
+[2026-11-22 03:18:02] آهنگ «old-name.mp3» از داخل پوشه «D:\\SoundSpace\\Album» حذف شد.
+```
 
-## Publish
+Only recognized audio extensions are tracked. The app does not inspect or download music contents. Rename between two audio filenames is logged as a rename; renaming an audio file to a non-audio extension is logged as a deletion, and the reverse is logged as an addition.
 
-From the project directory:
+## Publish and start with Windows
+
+Run from the project directory:
 
 ```powershell
 dotnet publish ".\\Folder Watcher.csproj" -c Release -r win-x64 --self-contained true
 ```
 
-Copy the published output folder as a whole. Keep `appsettings.json` beside `FolderWatcher.exe`. Put a shortcut to the published executable in the Windows Startup folder (`shell:startup`). The app runs without a console window.
-
-## Log format
-
-Each event is one JSON object on one line, for example:
-
-```json
-{"timestamp":"2026-11-22T03:15:20+03:30","action":"Added","path":"D:\\SoundSpace\\album\\track.flac","newPath":null,"details":null}
-```
-
-Actions are `Added`, `Deleted`, `Renamed`, `WatcherStarted`, and `WatcherError`. The log is append-only and flushed after each event so another process can read it while monitoring continues.
-
-Only files with recognized audio extensions are logged. File edits/metadata changes are intentionally ignored; the requested tracking is additions, deletions and renames. A rename between audio and non-audio extensions is represented as an add or delete.
+Copy the published output folder as a whole. Keep `appsettings.json` beside `FolderWatcher.exe`. Create a shortcut to the executable in the Windows Startup folder (`shell:startup`). It runs without a console window.
 
 ## Notes
 
-- Monitoring begins when the process starts; there is no initial library scan and no historical inventory.
-- Windows file notifications can overflow during very heavy activity. The app records a `WatcherError` event when Windows reports a buffer overflow, but cannot reconstruct events that Windows did not deliver.
-- Keep the log outside the watched folder where practical.
+- Monitoring begins at process startup. No initial scan or historical inventory is performed.
+- The log file is inside the monitored folder; it is not an audio file, so it is ignored by the audio-extension filter.
+- Windows may drop notifications during very heavy activity. A watcher error is written to the log when Windows reports such a condition.
